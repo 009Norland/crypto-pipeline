@@ -1,0 +1,145 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Coin Ledger</title>
+<style>
+:root{--bg:#f4f6f3;--card:#fff;--ink:#1d2b2a;--mut:#5f6f6c;--line:#d9e0dc;--acc:#0f6b66;--bi:#fff;--up:#1f7a4d;--dn:#b3412f;--code:#16211f}
+@media(prefers-color-scheme:dark){:root{--bg:#101817;--card:#17211f;--ink:#e6efec;--mut:#93a5a1;--line:#273532;--acc:#4fc3b8;--bi:#0b1514;--up:#6cc28e;--dn:#f08a7c;--code:#0b1211}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.55 "Segoe UI",system-ui,sans-serif}
+h1,h2,.num{font-family:Georgia,serif;font-weight:600;margin:0}
+h1{font-size:30px;line-height:1.2}h2{font-size:20px;margin:34px 0 6px}
+.wrap{max-width:980px;margin:0 auto;padding:0 20px 60px}
+header{display:flex;align-items:center;justify-content:space-between;gap:12px 20px;padding:16px 0;border-bottom:1px solid var(--line);flex-wrap:wrap}
+.logo{font:600 22px Georgia,serif}.logo span{color:var(--acc)}
+nav{display:flex;gap:2px;flex-wrap:wrap}
+nav button{background:none;border:0;color:var(--mut);font:inherit;padding:8px 12px;cursor:pointer;border-bottom:2px solid transparent}
+nav button.on{color:var(--ink);border-color:var(--acc)}
+button:focus-visible,textarea:focus-visible{outline:2px solid var(--acc);outline-offset:2px}
+.btn{background:var(--acc);color:var(--bi);border:0;border-radius:8px;padding:9px 16px;font:inherit;font-weight:600;cursor:pointer}
+.btn:disabled{opacity:.6;cursor:wait}
+section{padding-top:30px}
+.lead{max-width:62ch;color:var(--mut);margin:8px 0 0}
+.lead b{color:var(--ink)}
+.row{display:grid;grid-template-columns:1.2fr 1fr 1.6fr;gap:12px;padding:12px 0;border-bottom:1px solid var(--line);align-items:baseline}
+.row .num{font-size:20px}.row small{color:var(--mut)}
+.up{color:var(--up)}.dn{color:var(--dn)}
+.panel{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:14px;margin-top:12px;color:var(--mut)}
+#chart{width:100%;height:auto;display:block}
+.leg{display:flex;gap:16px;flex-wrap:wrap;font-size:14px;margin-top:8px}
+.leg i{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:6px}
+textarea{width:100%;min-height:160px;margin-top:6px;background:var(--code);color:#e6efec;border:0;border-radius:8px;padding:14px;font:14px/1.5 Consolas,ui-monospace,monospace}
+.chips{display:flex;gap:8px;flex-wrap:wrap;margin:16px 0 10px}
+.chip{border:1px solid var(--line);background:var(--card);color:var(--ink);border-radius:99px;padding:6px 14px;font:inherit;font-size:14px;cursor:pointer}
+.tw{overflow-x:auto;margin-top:14px}
+table{border-collapse:collapse;width:100%;font-size:14px}
+th,td{text-align:left;padding:8px 12px;border-bottom:1px solid var(--line);white-space:nowrap}
+th{color:var(--mut);font-weight:500}
+.msg{color:var(--mut);margin:10px 0}.err{color:var(--dn)}
+ol{padding-left:22px;max-width:62ch}li{margin:14px 0}
+[hidden]{display:none}
+@media(max-width:560px){.row{grid-template-columns:1fr 1fr}.row small{grid-column:1/-1}}
+</style></head><body><div class="wrap">
+<header><div class="logo">Coin <span>Ledger</span></div>
+<nav id="tabs"><button data-t="today" class="on">Today</button><button data-t="ask">Ask a question</button><button data-t="data">Browse the data</button><button data-t="how">How it works</button></nav>
+<button class="btn" id="go">Check prices now</button></header>
+
+<section id="today"><h1>Here's what your pipeline has gathered</h1>
+<p class="lead" id="sum">Loading…</p>
+<h2>The coins right now</h2><div id="coins"></div>
+<h2>Side by side</h2>
+<p class="lead">Every coin starts at 100, so you can compare them fairly even though one Bitcoin costs far more than one Dogecoin.</p>
+<div class="panel"><svg id="chart" viewBox="0 0 800 280"></svg><div class="leg" id="leg"></div></div>
+<p class="msg" id="status"></p></section>
+
+<section id="ask" hidden><h1>Ask your data a question</h1>
+<p class="lead">Pick a question to see how it's written in SQL, or edit it and make it your own. It's read-only, so you can't break anything.</p>
+<div class="chips" id="chips"></div><textarea id="sql" spellcheck="false" aria-label="SQL query"></textarea>
+<p><button class="btn" id="run">Run question</button> <span class="msg" id="qmsg"></span></p><div class="tw" id="qout"></div></section>
+
+<section id="data" hidden><h1>Browse the data</h1>
+<p class="lead">The three tables in your database, newest rows first. Raw prices are exactly what came in; the other two are the tidied-up version.</p>
+<div class="chips" id="tbtn"></div><div class="tw" id="tout"></div></section>
+
+<section id="how" hidden><h1>How it works</h1>
+<p class="lead">Each run does the same five things, in this order.</p>
+<ol><li><b>Ask CoinGecko.</b> The pipeline requests the current price, market cap and 24-hour volume for each coin you follow.</li>
+<li><b>Check the answer.</b> If a coin is missing or a price is zero or negative, the run stops before anything is saved.</li>
+<li><b>Keep an untouched copy.</b> Everything goes into <code>raw_prices</code> as it arrived, so you can always go back to the source.</li>
+<li><b>Tidy it up.</b> Coins go into <code>dim_coin</code> and prices into <code>fact_price</code>, so questions are easy to ask.</li>
+<li><b>Double-check.</b> The raw and tidy tables should hold the same number of rows. If they don't, the run says so.</li></ol></section>
+
+<script>
+const $=s=>document.querySelector(s),COL=["#0f8a82","#c98a1b","#7a5ea8","#c0503a","#4d8a3f","#2f6fa8","#a8476b","#6b6b6b"];
+const api=async(p,o)=>{const r=await fetch(p,o),j=await r.json();if(!r.ok)throw new Error(j.error||"Something went wrong");return j};
+const fmt=n=>n>=1?n.toLocaleString(undefined,{maximumFractionDigits:2}):n.toPrecision(3);
+const ago=t=>{const m=Math.round((Date.now()-new Date(t))/6e4);return m<1?"just now":m<60?m+" min ago":m<1440?Math.round(m/60)+" hr ago":Math.round(m/1440)+" days ago"};
+const grid=(d,el)=>{el.innerHTML=`<table><tr>${d.cols.map(c=>`<th>${c}</th>`).join("")}</tr>${d.rows.map(r=>`<tr>${r.map(v=>`<td>${v??""}</td>`).join("")}</tr>`).join("")}</table>`};
+
+async function today(){try{const d=await api("/api/overview"),names=Object.keys(d.series);
+if(!names.length){$("#sum").textContent="Nothing saved yet. Press “Check prices now” to collect your first snapshot.";return}
+$("#sum").innerHTML=`<b>${d.snapshots.toLocaleString()}</b> snapshots saved so far, covering <b>${names.length}</b> coins. The last check was <b>${ago(d.latest)}</b>. Every few minutes the pipeline asks CoinGecko for prices, makes sure they look sensible, and files them away.`;
+$("#coins").innerHTML=names.map(n=>{const s=d.series[n],p=s.at(-1)[1],c=s.length>1?(p/s.at(-2)[1]-1)*100:null;
+return `<div class="row"><span>${n}</span><span class="num">$${fmt(p)}</span>${c==null?"<small>first snapshot</small>":`<small class="${c>=0?"up":"dn"}">${c>=0?"▲ up":"▼ down"} ${Math.abs(c).toFixed(2)}% since the last check</small>`}</div>`}).join("");
+chart(d.series,names)}catch(e){$("#sum").textContent=e.message}}
+
+function chart(S,names){const W=800,H=280,P=36,L=names.map(n=>S[n].map(([t,p])=>[+new Date(t),p/S[n][0][1]*100])),A=L.flat(),
+x0=Math.min(...A.map(a=>a[0])),x1=Math.max(...A.map(a=>a[0])),lo=Math.min(...A.map(a=>a[1]),100),hi=Math.max(...A.map(a=>a[1]),100),pad=(hi-lo)*.1||1,
+X=t=>P+(t-x0)/((x1-x0)||1)*(W-P-8),Y=v=>H-24-(v-lo+pad)/(hi-lo+2*pad)*(H-40);
+$("#chart").innerHTML=`<line x1="${P}" x2="${W-8}" y1="${Y(100)}" y2="${Y(100)}" stroke="currentColor" opacity=".3" stroke-dasharray="4"/><text x="2" y="${Y(100)+4}" font-size="12" fill="currentColor">100</text>`+
+L.map((l,i)=>`<polyline fill="none" stroke="${COL[i%8]}" stroke-width="2" points="${l.map(a=>X(a[0]).toFixed(1)+","+Y(a[1]).toFixed(1)).join(" ")}"/>`).join("");
+$("#leg").innerHTML=names.map((n,i)=>`<span><i style="background:${COL[i%8]}"></i>${n}</span>`).join("")}
+
+$("#go").onclick=async e=>{const b=e.target;b.disabled=true;b.textContent="Checking…";
+try{await api("/api/run",{method:"POST"});$("#status").textContent="Done. Fresh prices are saved.";today()}catch(x){$("#status").textContent="That didn't work: "+x.message}
+b.disabled=false;b.textContent="Check prices now"};
+
+const Q={"Latest prices":`SELECT d.coin_id, f.price, f.fetched_at
+FROM fact_price f
+JOIN dim_coin d USING (coin_key)
+WHERE f.fetched_at = (SELECT MAX(fetched_at) FROM fact_price)
+ORDER BY f.price DESC`,
+"Who moved the most?":`SELECT coin_id, ROUND(pct, 3) AS pct_change
+FROM (
+  SELECT d.coin_id, f.fetched_at,
+         (f.price - LAG(f.price) OVER w) / LAG(f.price) OVER w * 100 AS pct,
+         MAX(f.fetched_at) OVER () AS latest
+  FROM fact_price f JOIN dim_coin d USING (coin_key)
+  WINDOW w AS (PARTITION BY f.coin_key ORDER BY f.fetched_at)
+) x
+WHERE fetched_at = latest
+ORDER BY ABS(pct) DESC`,
+"Hourly averages":`SELECT d.coin_id, date_trunc('hour', f.fetched_at) AS hour,
+       ROUND(AVG(f.price), 4) AS avg_price
+FROM fact_price f JOIN dim_coin d USING (coin_key)
+GROUP BY 1, 2
+ORDER BY 2 DESC, 1
+LIMIT 30`,
+"How bumpy is each coin?":`WITH r AS (
+  SELECT coin_key,
+         (price - LAG(price) OVER (PARTITION BY coin_key ORDER BY fetched_at))
+         / LAG(price) OVER (PARTITION BY coin_key ORDER BY fetched_at) AS ret
+  FROM fact_price
+)
+SELECT d.coin_id, ROUND(STDDEV(ret) * 100, 4) AS swing_pct
+FROM r JOIN dim_coin d USING (coin_key)
+GROUP BY 1
+ORDER BY 2 DESC`};
+$("#chips").innerHTML=Object.keys(Q).map(k=>`<button class="chip">${k}</button>`).join("");
+$("#chips").onclick=e=>{if(e.target.className=="chip")$("#sql").value=Q[e.target.textContent]};
+$("#sql").value=Q["Latest prices"];
+$("#run").onclick=async()=>{const m=$("#qmsg"),t=performance.now();m.className="msg";m.textContent="Running…";$("#qout").innerHTML="";
+try{const d=await api("/api/query",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({sql:$("#sql").value})});
+m.textContent=`${d.rows.length} rows in ${Math.round(performance.now()-t)} ms`;grid(d,$("#qout"))}catch(x){m.className="msg err";m.textContent=x.message}};
+
+const T=["fact_price","dim_coin","raw_prices"];let tn=T[0];
+$("#tbtn").innerHTML=T.map(t=>`<button class="chip">${t}</button>`).join("");
+$("#tbtn").onclick=e=>{if(e.target.className=="chip"){tn=e.target.textContent;table()}};
+const table=async()=>{try{grid(await api("/api/table/"+tn),$("#tout"))}catch(x){$("#tout").textContent=x.message}};
+
+$("#tabs").onclick=e=>{const t=e.target.dataset.t;if(!t)return;
+document.querySelectorAll("section").forEach(s=>s.hidden=s.id!=t);
+document.querySelectorAll("nav button").forEach(b=>b.classList.toggle("on",b===e.target));
+if(t=="today")today();if(t=="data")table()};
+today();
+</script></div></body></html>
