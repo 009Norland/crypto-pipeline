@@ -4,6 +4,7 @@ An automated data pipeline that collects cryptocurrency prices every few minutes
 checks them, stores them in PostgreSQL, and shows them in a small web dashboard.
 
 ![Dashboard](dashboard.png)
+![Dashboard](dashboard2.png)
 
 ## What it does
 
